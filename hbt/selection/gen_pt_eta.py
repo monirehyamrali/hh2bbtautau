@@ -95,16 +95,16 @@ def gen_pt_eta_selection(
     # event_sel_pos = ak.fill_none(ak.num(pion_det_pos, axis=1) > 0, False) 
     # event_sel_neg =  ak.fill_none(ak.num(pion_det_neg, axis=1) > 0, False)
     
-    event_sel_pos = ~ak.is_none(pion_det_pos.pt, axis=0)
-    event_sel_neg = ~ak.is_none(pion_det_neg.pt, axis=0)
+    event_sel_pos = ak.any(~ak.is_none(pion_det_pos.pt, axis=-1), axis=-1)
+    event_sel_neg = ak.any(~ak.is_none(pion_det_neg.pt, axis=-1), axis=-1)
     event_sel = event_sel_pos | event_sel_neg
     
     events = set_ak_column_f32(events, "pion_det_pos_E", events.pion_pos_E[pion_pos_indices])
     events = set_ak_column_f32(events, "pion_det_neg_E", events.pion_neg_E[pion_neg_indices])
 
     # prepare the selection results that are updated at every step
-    from IPython import embed
-    embed()
+    # from IPython import embed
+    # embed()
     results =  SelectionResult(
         steps={
             "pions": event_sel,
@@ -129,8 +129,7 @@ def gen_pt_eta_selection(
         },
     )
     # from IPython import embed; embed()
-    results.main["event"] = event_sel
-    # results.objects[""] = 
+    results.event = event_sel
     
 
     # create process ids
