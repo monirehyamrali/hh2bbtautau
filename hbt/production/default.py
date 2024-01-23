@@ -100,36 +100,3 @@ def default(self: Producer, events: ak.Array, **kwargs) -> ak.Array:
 
 
     return events
-
-
-
-
-@producer(
-    uses={
-        category_ids,
-    },
-    produces={
-        category_ids,
-    },
-)
-def empty(self: Producer, events: ak.Array, **kwargs) -> ak.Array:
-    # category ids
-    # from IPython import embed
-    # embed()
-    events = self[category_ids](events, **kwargs)
-
-    # # mc-only weights
-    # if self.dataset_inst.is_mc:
-    #     # normalization weights
-    #     events = self[normalization_weights](events, **kwargs)
-
-    #     # normalized pdf weight
-    #     events = self[normalized_pdf_weight](events, **kwargs)
-
-    #     # normalized renorm./fact. weight
-    #     events = self[normalized_murmuf_weight](events, **kwargs)
-
-    #     # normalized pu weights
-    #     events = self[normalized_pu_weight](events, **kwargs)
-
-    return events
