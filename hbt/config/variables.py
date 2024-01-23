@@ -499,23 +499,26 @@ def add_variables(config: od.Config) -> None:
        name="pion_neg.E",
        expression="pion_neg.E",
        binning=(40, 0.0, 400.0),
+       null_value=EMPTY_FLOAT,
        unit="GeV",
        x_title=r"$E_{\pi^{neg}} (direct)$",
     )
 
     config.add_variable(
-       name="pion_det_pos.E",
-       expression="pion_det_pos.E",
-       binning=(40, 0.0, 400.0),
-       unit="GeV",
-       x_title=r"$E^{det}_{\pi^{pos}} (direct)$",
+       name="pion_det_pos.phi",
+       expression="pion_det_pos.phi",
+       binning=(40, -4, 4),
+       null_value=EMPTY_FLOAT,
+       unit="rad",
+       x_title=r"$\phi^{det}_{\pi^{pos}} (direct)$",
     )
     config.add_variable(
-       name="pion_det_neg.E",
-       expression="pion_det_neg.E",
-       binning=(40, 0.0, 400.0),
-       unit="GeV",
-       x_title=r"$E^{det}_{\pi^{neg}} (direct)$",
+       name="pion_det_neg.phi",
+       expression="pion_det_neg.phi",
+       binning=(40, -4, 4),
+       null_value=EMPTY_FLOAT,
+       unit="rad",
+       x_title=r"$\phi^{det}_{\pi^{neg}} (direct)$",
     )
 
 
