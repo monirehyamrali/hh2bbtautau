@@ -6,7 +6,9 @@ Producers that determine the generator-level particles related to a top quark de
 
 from columnflow.production import Producer, producer
 from columnflow.util import maybe_import
-from columnflow.columnar_util import set_ak_column, remove_ak_column, attach_behavior, EMPTY_FLOAT
+from columnflow.columnar_util import (
+    set_ak_column, remove_ak_column, attach_behavior, EMPTY_FLOAT, get_ak_routes, remove_ak_column)
+from columnflow.types import Sequence
 import numpy as np
 
 ak = maybe_import("awkward")
@@ -252,14 +254,14 @@ def gen_higgs_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.A
 
 
     tau_neg_2c = tau_children_neg[ak.num(tau_children_neg, axis=2) == 2]
-    pion_neg = ak.firsts(ak.flatten(tau_neg_2c[tau_neg_2c.pdgId == -211], axis=2))
-    from IPython import embed
-    embed()
-    kaon_neg = ak.firsts(ak.flatten(tau_neg_2c[tau_neg_2c.pdgId == -321], axis=2))
+    pion_neg = ak.flatten(tau_neg_2c[tau_neg_2c.pdgId == -211], axis=2)
+    # from IPython import embed
+    # embed()
+    kaon_neg = ak.flatten(tau_neg_2c[tau_neg_2c.pdgId == -321], axis=2)
 
     tau_pos_2c = tau_children_pos[ak.num(tau_children_pos, axis=2) == 2]
-    pion_pos = ak.firsts(ak.flatten(tau_pos_2c[tau_pos_2c.pdgId == 211], axis=2))
-    kaon_pos = ak.firsts(ak.flatten(tau_pos_2c[tau_pos_2c.pdgId == 321], axis=2))
+    pion_pos = ak.flatten(tau_pos_2c[tau_pos_2c.pdgId == 211], axis=2)
+    kaon_pos = ak.flatten(tau_pos_2c[tau_pos_2c.pdgId == 321], axis=2)
 
     z_pion_neg = pion_neg.E/tau_neg[:, 0].E
     z_pion_pos = pion_pos.E/tau_pos[:, 0].E
@@ -340,18 +342,42 @@ def gen_higgs_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.A
     groups = ak.zip({key: ak.pad_none(val, 2, axis=-1) for key, val in field_dict.items()})
     #from IPython import embed; embed()
     # save the column
+
+    def make_column_save(src: ak.Array):
+        col = ak.pad_none(src, 1, axis=-1)
+        col = ak.fill_none(col, EMPTY_FLOAT, axis=-1)
+        return col
+
+    # helper to clean problematic columns from array
+    def set_ak_column_save(
+        events: ak.Array,
+        target: str,
+        src: ak.Array,
+        problematic: Sequence[str] or None = None
+    ) -> ak.Array:
+        if problematic == None:
+            problematic = (
+                "childrenIdxG", "distinctChildrenDeepIdxG", "distinctChildrenIdxG",
+                "distinctParentIdxG", "genPartIdxMother", "genPartIdxMotherG",
+            )
+        for route in get_ak_routes(src):
+            if not route in problematic:
+                events = set_ak_column(events, ".".join([target, route.column]), make_column_save(route.apply(src)))
+
+        return events
+
+
     events = set_ak_column(events, "gen_higgs_decay", groups)
     # events = set_ak_column(events, "z_pion_neg", z_pion_neg)
     # events = set_ak_column(events, "z_pion_pos", z_pion_pos)
     events = set_ak_column(events, "z_kaon_pos", z_kaon_pos)
     events = set_ak_column(events, "z_kaon_neg", z_kaon_neg)
-    events = set_ak_column(events, "pion_neg", pion_neg)
-    events = set_ak_column(events, "pion_pos", pion_pos)
-    events = set_ak_column(events, "pion_neg.zfrac", z_pion_neg)
-    events = set_ak_column(events, "pion_pos.zfrac", z_pion_pos)
+    events = set_ak_column_save(events, "pion_neg", pion_neg)
+    events = set_ak_column_save(events, "pion_pos", pion_pos)
+    events = set_ak_column(events, "pion_neg.zfrac", make_column_save(z_pion_neg))
+    events = set_ak_column(events, "pion_pos.zfrac", make_column_save(z_pion_pos))
     events = set_ak_column(events, "pion_neg_E", pion_neg_energy)
-    events = set_ak_column(events, "pion_pos_E", pion_pos_energy)
-    
+    events = set_ak_column(events, "pion_pos_E", pion_pos_energy)    
 
     return events
 
