@@ -168,9 +168,18 @@ def jet_selection(
     wp = self.config_inst.x.btag_working_points.deepcsv.loose
     subjets_btagged = ak.all(events.SubJet[ak.firsts(subjet_indices)].btagDeepB > wp, axis=1)
 
+
     # pt sorted indices to convert mask
     jet_indices = sorted_indices_from_mask(default_mask, events.Jet.pt, ascending=False)
 
+    # TUTORIAL WITH PHILIP
+    # identify bjets with DeepJet (previously DeepFlavour) tagger
+    ak4_btag_wp = self.config_inst.x.btag_working_points.deepjet.medium
+    btagged_jet_mask = default_mask & (events.Jet.btagDeepFlavB > ak4_btag_wp)
+    bjet_indices = sorted_indices_from_mask(btagged_jet_mask, events.Jet.pt, ascending=False)
+
+
+    # END TUTORIAL WITH PHILIP
     # keep indices of default jets that are explicitly not selected as hhbjets for easier handling
     non_hhbjet_indices = sorted_indices_from_mask(
         default_mask & (~hhbjet_mask),
@@ -209,6 +218,7 @@ def jet_selection(
                 "HHBJet": hhbjet_indices,
                 "NonHHBJet": non_hhbjet_indices,
                 "VBFJet": vbfjet_indices,
+                "BJet": bjet_indices, # add new field 'BJet' which only contains b-tagged jets
             },
             "FatJet": {
                 "FatJet": fatjet_indices,  # updated: not from Jet column anymore

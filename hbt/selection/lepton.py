@@ -508,6 +508,12 @@ def lepton_selection(
     sel_muon_indices = ak.values_astype(sel_muon_indices, np.int32)
     sel_tau_indices = ak.values_astype(sel_tau_indices, np.int32)
 
+    sel_tau_pos_indices_from_sel_tau = events.Tau[sel_tau_indices].charge >0
+    sel_tau_pos_indices = sel_tau_indices[sel_tau_pos_indices_from_sel_tau]
+    
+    sel_tau_neg_indices_from_sel_tau = events.Tau[sel_tau_indices].charge<0
+    sel_tau_neg_indices = sel_tau_indices[sel_tau_neg_indices_from_sel_tau]
+
     # save new columns
     events = set_ak_column(events, "channel_id", channel_id)
     events = set_ak_column(events, "leptons_os", leptons_os)
@@ -528,6 +534,8 @@ def lepton_selection(
             },
             "Tau": {
                 "Tau": sel_tau_indices,
+                "Tau_pos": sel_tau_pos_indices,
+                "Tau_neg": sel_tau_neg_indices,
             },
         },
         aux={

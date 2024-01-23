@@ -73,7 +73,6 @@ add_config_run2ul(
     config_id=31,
 )
 
-# v11 uhh config with limited number of files for faster prototyping
 add_config_run2ul(
     analysis_hbt,
     campaign_run2_2017_nano_uhh_v11.copy(),

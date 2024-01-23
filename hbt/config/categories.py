@@ -27,3 +27,10 @@ def add_categories(config: od.Config) -> None:
         selection="cat_2j",
         label="2 jets",
     )
+    # add_category(
+    #     config,
+    #     name="ge1_pion",
+    #     id=101,
+    #     selection="cat_ge1_pion",
+    #     label=r"\geq 1 \pi"
+    # )

@@ -64,8 +64,13 @@ def add_config(
         "qcd",
         "h",
         "hh_ggf_bbtautau",
-        "graviton_hh_ggf_bbtautau_m400",
-        "graviton_hh_ggf_bbtautau_m1250",
+    ]
+
+    masspoints = list(range(300, 700, 100))
+    masspoints += list(range(750, 2000, 250))
+    process_names += [
+        f"graviton_hh_ggf_bbtautau_m{mass}"
+        for mass in masspoints
     ]
     for process_name in process_names:
         # development switch in case datasets are not _yet_ there
@@ -141,8 +146,11 @@ def add_config(
         "tth_nonbb_powheg",
         # signals
         "hh_ggf_bbtautau_madgraph",
-        "graviton_hh_ggf_bbtautau_m400_madgraph",
-        "graviton_hh_ggf_bbtautau_m1250_madgraph",
+    ]
+
+    dataset_names += [
+        f"graviton_hh_ggf_bbtautau_m{mass}_madgraph"
+        for mass in masspoints
     ]
     for dataset_name in dataset_names:
         # development switch in case datasets are not _yet_ there
@@ -649,6 +657,7 @@ def add_config(
             # object info
             "Jet.pt", "Jet.eta", "Jet.phi", "Jet.mass", "Jet.btagDeepFlavB", "Jet.hadronFlavour",
             "Jet.hhbtag",
+            "BJet.*",
             "HHBJet.pt", "HHBJet.eta", "HHBJet.phi", "HHBJet.mass", "HHBJet.btagDeepFlavB",
             "HHBJet.hadronFlavour", "HHBJet.hhbtag",
             "NonHHBJet.pt", "NonHHBJet.eta", "NonHHBJet.phi", "NonHHBJet.mass",
@@ -658,11 +667,21 @@ def add_config(
             "Muon.pt", "Muon.eta", "Muon.phi", "Muon.mass", "Muon.pfRelIso04_all",
             "Tau.pt", "Tau.eta", "Tau.phi", "Tau.mass", "Tau.idDeepTau2017v2p1VSe",
             "Tau.idDeepTau2017v2p1VSmu", "Tau.idDeepTau2017v2p1VSjet", "Tau.genPartFlav",
-            "Tau.decayMode",
+            "Tau.decayMode", "Tau.charge",
+            "Tau_pos.*", "Tau_neg.*",
             "MET.pt", "MET.phi", "MET.significance", "MET.covXX", "MET.covXY", "MET.covYY",
             "PV.npvs",
             # columns added during selection
             ColumnCollection.ALL_FROM_SELECTOR,
+            "channel_id", "process_id", "category_ids", "mc_weight", "pdf_weight*", "murmuf_weight*",
+            "leptons_os", "tau2_isolated", "single_triggered", "cross_triggered",
+            "deterministic_seed", "pu_weight*", "btag_weight*", "cutflow.*",
+            # spin tests
+            "ts_*", "gen_higgs_decay.*", "z_pion_neg", "z_pion_pos", "z_kaon_pos", "z_kaon_neg",
+            "gen_z_decay.*", "z_k_neg", "z_k_pos",
+            "gen_top_decay", "z_kaon_t_pos", "z_kaon_bar_neg", 
+            "pion_neg.*", "pion_pos.*", "pion_det_neg.*", "pion_det_pos.*", "pion_pos_E", "pion_neg_E",
+            "pion_det_pos_E", "pion_det_neg_E",
         },
         "cf.MergeSelectionMasks": {
             "cutflow.*",
@@ -675,15 +694,15 @@ def add_config(
     # event weight columns as keys in an OrderedDict, mapped to shift instances they depend on
     get_shifts = functools.partial(get_shifts_from_sources, cfg)
     cfg.x.event_weights = DotDict({
-        "normalization_weight": [],
-        "pdf_weight": get_shifts("pdf"),
-        "murmuf_weight": get_shifts("murmuf"),
-        "normalized_pu_weight": get_shifts("minbias_xs"),
-        "normalized_njet_btag_weight": get_shifts(*(f"btag_{unc}" for unc in btag_uncs)),
-        "electron_weight": get_shifts("e"),
-        "muon_weight": get_shifts("mu"),
-        "tau_weight": get_shifts(*(f"tau_{unc}" for unc in tau_uncs)),
-        "tau_trigger_weight": get_shifts("etau_trigger", "mutau_trigger", "tautau_trigger"),
+        # "normalization_weight": [],
+        # "pdf_weight": get_shifts("pdf"),
+        # "murmuf_weight": get_shifts("murmuf"),
+        # "normalized_pu_weight": get_shifts("minbias_xs"),
+        # "normalized_njet_btag_weight": get_shifts(*(f"btag_{unc}" for unc in btag_uncs)),
+        # "electron_weight": get_shifts("e"),
+        # "muon_weight": get_shifts("mu"),
+        # "tau_weight": get_shifts(*(f"tau_{unc}" for unc in tau_uncs)),
+        # "tau_trigger_weight": get_shifts("etau_trigger", "mutau_trigger", "tautau_trigger"),
     })
 
     # define per-dataset event weights
