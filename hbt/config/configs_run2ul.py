@@ -20,6 +20,7 @@ from columnflow.config_util import (
     get_root_processes_from_campaign, add_shift_aliases, get_shifts_from_sources,
     verify_config_processes,
 )
+from columnflow.columnar_util import ColumnCollection
 
 
 thisdir = os.path.dirname(os.path.abspath(__file__))
@@ -554,7 +555,7 @@ def add_config(
     )
 
     # external files
-    json_mirror = "/afs/cern.ch/user/m/mrieger/public/mirrors/jsonpog-integration-dfd90038"
+    json_mirror = "/afs/cern.ch/work/m/mrieger/public/mirrors/jsonpog-integration-9ea86c4c"
     cfg.x.external_files = DotDict.wrap({
         # jet energy correction
         "jet_jerc": (f"{json_mirror}/POG/JME/{year}{corr_postfix}_UL/jet_jerc.json.gz", "v1"),
@@ -661,12 +662,10 @@ def add_config(
             "MET.pt", "MET.phi", "MET.significance", "MET.covXX", "MET.covXY", "MET.covYY",
             "PV.npvs",
             # columns added during selection
-            "channel_id", "process_id", "category_ids", "mc_weight", "pdf_weight*", "murmuf_weight*",
-            "leptons_os", "tau2_isolated", "single_triggered", "cross_triggered",
-            "deterministic_seed", "pu_weight*", "btag_weight*", "cutflow.*",
+            ColumnCollection.ALL_FROM_SELECTOR,
         },
         "cf.MergeSelectionMasks": {
-            "normalization_weight", "process_id", "category_ids", "cutflow.*",
+            "cutflow.*",
         },
         "cf.UniteColumns": {
             "*",
@@ -761,4 +760,11 @@ def add_config(
         cfg.x.get_dataset_lfns_sandbox = dev_sandbox("bash::$CF_BASE/sandboxes/cf.sh")
 
         # define custom remote fs's to look at
-        cfg.x.get_dataset_lfns_remote_fs = lambda dataset_inst: f"wlcg_fs_{cfg.campaign.x.custom['name']}"
+        def get_dataset_lfns_fs(dataset_inst: od.Dataset) -> list[str]:
+            fs = []
+            if os.path.isdir("/pnfs"):
+                fs.append(f"local_fs_{cfg.campaign.x.custom['name']}")
+            fs.append(f"wlcg_fs_{cfg.campaign.x.custom['name']}")
+            return fs
+
+        cfg.x.get_dataset_lfns_remote_fs = get_dataset_lfns_fs

@@ -4,9 +4,6 @@
 Configuration of the HH → bb𝜏𝜏 analysis.
 """
 
-import os
-
-import law
 import order as od
 
 
@@ -33,12 +30,8 @@ analysis_hbt.x.bash_sandboxes = [
 # files of cmssw sandboxes that might be required by remote tasks
 # (used in cf.HTCondorWorkflow)
 analysis_hbt.x.cmssw_sandboxes = [
-    # "$HBT_BASE/sandboxes/cmssw_default.sh",
+    "$CF_BASE/sandboxes/cmssw_default.sh",
 ]
-
-# clear the list when cmssw bundling is disabled
-if not law.util.flag_to_bool(os.getenv("HBT_BUNDLE_CMSSW", "1")):
-    del analysis_hbt.x.cmssw_sandboxes[:]
 
 # config groups for conveniently looping over certain configs
 # (used in wrapper_factory)
@@ -70,6 +63,14 @@ add_config_run2ul(
     config_name=f"{campaign_run2_2017_nano_v9.name}_limited",
     config_id=12,
     limit_dataset_files=2,
+)
+
+# default v11 uhh config
+add_config_run2ul(
+    analysis_hbt,
+    campaign_run2_2017_nano_uhh_v11.copy(),
+    config_name=campaign_run2_2017_nano_uhh_v11.name,
+    config_id=31,
 )
 
 # v11 uhh config with limited number of files for faster prototyping
