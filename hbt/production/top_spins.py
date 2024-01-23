@@ -11,9 +11,9 @@ from columnflow.production import Producer, producer
 from columnflow.util import maybe_import
 from columnflow.columnar_util import set_ak_column, flat_np_view, ak_copy, EMPTY_FLOAT, optional_column
 
-from columnflow.production.cms.gen_top_decay import gen_top_decay_products
-from columnflow.production.cms.gen_higgs_decay import gen_higgs_decay_products
-from columnflow.production.cms.gen_z_decay import gen_z_decay_products
+from hbt.production.gen_top_decay import gen_top_decay_products
+from hbt.production.gen_higgs_decay import gen_higgs_decay_products
+from hbt.production.gen_z_decay import gen_z_decay_products
 
 
 ak = maybe_import("awkward")
