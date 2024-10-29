@@ -25,6 +25,11 @@ from hbt.selection.trigger import trigger_selection
 from hbt.selection.lepton import lepton_selection
 from hbt.selection.jet import jet_selection
 from hbt.production.features import cutflow_features
+from hbt.production.tau_zfrac import z_nu, higgs_nu, top_nu
+
+from hbt.production.gen_top_decay import gen_top_decay_products
+from hbt.production.gen_higgs_decay import gen_higgs_decay_products
+from hbt.production.gen_z_decay import gen_z_decay_products
 
 
 np = maybe_import("numpy")
@@ -35,12 +40,14 @@ ak = maybe_import("awkward")
     uses={
         json_filter, met_filters, trigger_selection, lepton_selection, jet_selection, mc_weight,
         pdf_weights, murmuf_weights, pu_weight, btag_weights, process_ids, cutflow_features,
-        increment_stats, attach_coffea_behavior,
+        increment_stats, attach_coffea_behavior,  # z_nu, top_nu, higgs_nu,
+        gen_top_decay_products, gen_higgs_decay_products, gen_z_decay_products,
     },
     produces={
         trigger_selection, lepton_selection, jet_selection, mc_weight,
         pdf_weights, murmuf_weights, pu_weight, btag_weights, process_ids, cutflow_features,
-        increment_stats,
+        increment_stats,  #, z_nu, top_nu, higgs_nu
+        gen_top_decay_products, gen_higgs_decay_products, gen_z_decay_products,
     },
     sandbox=dev_sandbox("bash::$HBT_BASE/sandboxes/venv_columnar_tf.sh"),
     exposed=True,
@@ -99,6 +106,21 @@ def default(
             ak.fill_none(results.x.jet_mask, False, axis=-1),
             **kwargs,
         )
+
+        # if self.dataset_inst.name.startswith("tt_"):
+        #     events = self[top_nu](events, **kwargs)
+        # elif self.dataset_inst.name.startswith("hh_"):
+        #     events = self[higgs_nu](events, **kwargs)
+        # elif self.dataset_inst.name.startswith("dy_"):
+        #     events = self[z_nu](events, **kwargs)
+
+        # only produce nu's
+        if self.dataset_inst.name.startswith("tt_"):
+            events = self[gen_top_decay_products](events, **kwargs)
+        elif self.dataset_inst.name.startswith("hh_"):
+            events = self[gen_higgs_decay_products](events, **kwargs)
+        elif self.dataset_inst.name.startswith("dy_"):
+            events = self[gen_z_decay_products](events, **kwargs)
 
     # combined event selection after all steps
     event_sel = reduce(and_, results.steps.values())

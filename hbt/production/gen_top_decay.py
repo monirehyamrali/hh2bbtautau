@@ -6,7 +6,9 @@ Producers that determine the generator-level particles related to a top quark de
 
 from columnflow.production import Producer, producer
 from columnflow.util import maybe_import
-from columnflow.columnar_util import set_ak_column, remove_ak_column, attach_behavior, EMPTY_FLOAT
+from columnflow.columnar_util import (
+    set_ak_column, remove_ak_column, attach_behavior, EMPTY_FLOAT, get_ak_routes)
+from columnflow.types import Sequence
 import numpy as np
 
 ak = maybe_import("awkward")
@@ -14,8 +16,11 @@ ak = maybe_import("awkward")
 
 @producer(
     uses={"GenPart.genPartIdxMother", "GenPart.pdgId", "GenPart.statusFlags", "GenPart.status"},
-    produces={"gen_top_decay", "z_kaon_pos", "z_pion_pos", "z_pion_neg", "z_kaon_neg", 
-    "pion_neg", "pion_pos"},
+    produces={"gen_top_decay.*.pt", "gen_top_decay.*.eta", "gen_top_decay.*.phi", "gen_top_decay.*.mass", "gen_top_decay.*.pdgId",
+    "gen_top_decay.*.statusFlags", "z_kaon_pos", "z_kaon_neg", 
+    "pion_neg.*", "pion_pos.*",
+    "tau_nus.*",
+    },
 )
 def gen_top_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.Array:
     """
@@ -68,11 +73,14 @@ def gen_top_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.Arr
     t_children = t.distinctChildrenDeep[t.distinctChildrenDeep.hasFlags("isHardProcess")]
     t_bar_children = t_bar.distinctChildrenDeep[t_bar.distinctChildrenDeep.hasFlags("isHardProcess")]
     # get b's
-    b = top_children[abs(top_children.pdgId) == 5][:, :, 0]
-
+    #from IPython import embed; embed()
+    b = top_children[top_children.pdgId == 5][:, 0]
+    b_bar = top_children[top_children.pdgId == -5][:, 1]
     # get W's
     w = top_children[abs(top_children.pdgId) == 24][:, :, 0]
+    # w plus
     w_t = t_children[abs(t_children.pdgId) == 24][:, :, 0]
+    # w minus
     w_t_bar = t_bar_children[abs(t_bar_children.pdgId) == 24][:, :, 0]
 
     # distinct W children
@@ -80,24 +88,25 @@ def gen_top_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.Arr
 
     w_t_children = w_t.distinctChildrenDeep
     w_t_bar_children = w_t_bar.distinctChildrenDeep
-    #from IPython import embed; embed()
+   
+    # quarks from the w decay 
     q_t = w_t_children[abs(w_t_children.pdgId) < 11]
     q_t_bar = w_t_bar_children[abs(w_t_bar_children.pdgId) < 11]
+    # leptons from the w decay
     lep_t = w_t_children[abs(w_t_children.pdgId) >= 11 ]
     lep_t_bar = w_t_bar_children[abs(w_t_bar_children.pdgId) >= 11 ]
 
-
+    # get tau lepton from w 
     tau_neg = w_t_bar_children[w_t_bar_children.pdgId == 15]
-    tau_neg = tau_neg[tau_neg.hasFlags("isLastCopy", "fromHardProcess")]
+    tau_neg = tau_neg[tau_neg.hasFlags("fromHardProcess")]
     tau_neg = ak.drop_none(tau_neg, behavior=tau_neg.behavior)
-    
 
     tau_pos = w_t_children[w_t_children.pdgId == -15]
-    tau_pos = tau_pos[tau_pos.hasFlags("isLastCopy", "fromHardProcess")]
+    tau_pos = tau_pos[tau_pos.hasFlags("fromHardProcess")]
     tau_pos = ak.drop_none(tau_pos, behavior=tau_pos.behavior)
-
     
-
+    
+    # distinct children tau
     tau_children_pos = tau_pos.distinctChildren
     abs_tau_children_pos_id = abs(tau_children_pos.pdgId)
     tau_children_pos = ak.drop_none(tau_children_pos, behavior=tau_children_pos.behavior)
@@ -105,8 +114,8 @@ def gen_top_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.Arr
     tau_children_neg = tau_neg.distinctChildrenDeep
     abs_tau_children_neg_id = abs(tau_children_neg.pdgId)
     tau_children_neg = ak.drop_none(tau_children_neg, behavior=tau_children_neg.behavior)
-
-
+    #from IPython import embed; embed()
+    # tau decays only in one pion/ kaon and neutrino
     tau_neg_2c = tau_children_neg[ak.num(tau_children_neg, axis=3) == 2]
     pion_neg = ak.firsts(ak.flatten(tau_neg_2c[tau_neg_2c.pdgId == -211], axis=2))
     kaon_neg = ak.firsts(ak.flatten(tau_neg_2c[tau_neg_2c.pdgId == -321], axis=2))
@@ -115,137 +124,133 @@ def gen_top_decay_products(self: Producer, events: ak.Array, **kwargs) -> ak.Arr
     pion_pos = ak.firsts(ak.flatten(tau_pos_2c[tau_pos_2c.pdgId == 211], axis=2))
     kaon_pos = ak.firsts(ak.flatten(tau_pos_2c[tau_pos_2c.pdgId == 321], axis=2))
 
-    z_pion_bar_neg = pion_neg.E/ak.firsts(tau_neg[:, 0].E)
-    z_pion_t_pos = pion_pos.E/ak.firsts(tau_pos[:, 0].E)
-    z_kaon_bar_neg = kaon_neg.E/ak.firsts(tau_neg[:, 0].E)
-    z_kaon_t_pos = kaon_pos.E/ak.firsts(tau_pos[:, 0].E)
+    # the energy fraction of a single pion and the decayed tau
+    z_pion_neg = ak.firsts(pion_neg.E)/tau_neg[:, 0].E
+    z_pion_pos = ak.firsts(pion_pos.E)/tau_pos[:, 0].E
+    z_kaon_bar_neg = ak.firsts(kaon_neg.E)/tau_neg[:, 0].E
+    z_kaon_t_pos = ak.firsts(kaon_pos.E)/tau_pos[:, 0].E
    
-    # reorder the first two W children (leptons or quarks) so that the charged lepton / down-type
-    # quark is listed first (they have an odd pdgId)
-    w_children_firsttwo = w_children[:, :, :2]
-    w_children_firsttwo = w_children_firsttwo[(w_children_firsttwo.pdgId % 2 == 0) * 1]
-    w_children_rest = w_children[:, :, 2:]
+    # # reorder the first two W children (leptons or quarks) so that the charged lepton / down-type
+    # # quark is listed first (they have an odd pdgId)
+    # w_children_firsttwo = w_children[:, :, :2]
+    # w_children_firsttwo = w_children_firsttwo[(w_children_firsttwo.pdgId % 2 == 0) * 1]
+    # w_children_rest = w_children[:, :, 2:]
+    # #from IPython import embed; embed()
 
-    
-    # # with negative charge
-    # electron = w_t_bar_children[w_t_bar_children.pdgId == 11]
-    # e_num = ak.sum(w_t_bar_children.pdgId == 11)
-    # #16734
-    # tau_num = ak.sum(w_t_bar_children.pdgId == 15)
-    # #16591
-    # muon = w_t_bar_children[w_t_bar_children.pdgId == 13]
-    # muon_num = ak.sum(w_t_bar_children.pdgId == 13)
-    # #16617
+    # 3 vector of neutrinos from tau decay
+    abs_id_neg = abs(tau_neg.distinctChildren.pdgId)
+    nu_neg = tau_neg.distinctChildren[(abs_id_neg == 12) | (abs_id_neg == 14) | (abs_id_neg == 16)]
+    nus_neg = ak.flatten(nu_neg, axis=1)
+    # if there are no taus, only 1-dimensional
+    # so, add a new dimensions by padding and filling
+    padded_nus_neg = ak.fill_none(ak.pad_none(nus_neg, 1, axis=1), [], axis=1)
+    # then, slice to reduce the dimension and get only the neutrinos
+    padded_nus_neg_reduced = padded_nus_neg[:,0]
+    nu_3_neg = padded_nus_neg_reduced.pvec
+    sum_nu_neg = nu_3_neg.sum(axis=-1)
 
-    # # with positive charge
-    # muon_pos = w_t_children[w_t_children.pdgId == -13]
-    # muon_pos_num = ak.sum(w_t_children.pdgId == -13)
-    # #16756
+    abs_id_pos = abs(tau_pos.distinctChildren.pdgId)
+    nu_pos = tau_pos.distinctChildren[(abs_id_pos == 12) | (abs_id_pos == 14) | (abs_id_pos == 16)]
+    nus_pos = ak.flatten(nu_pos, axis=1)
 
-    # positron = w_t_children[w_t_children.pdgId == -11]
-    # eplus_num = ak.sum(w_t_children.pdgId == -11)
-    # #16616
-    
-    # anti_tau_num = ak.sum(w_t_children.pdgId == -15)
-    # #16715
+    # if there are no taus, only 1-dimensional
+    # so, add a new dimensions by padding and filling
+    padded_nus_pos = ak.fill_none(ak.pad_none(nus_pos, 1, axis=1), [], axis=1)
+    # then, slice to reduce the dimension and get only the neutrinos
+    padded_nus_pos_reduced = padded_nus_pos[:,0]
+    nu_3_pos = padded_nus_pos_reduced.pvec
 
-    # quarks = w_t_children[abs(w_t_children.pdgId) < 11]
-    # quarks_num = ak.sum(abs(w_t_children.pdgId) < 11)
-    # #99860
-    
-    # antiquarks = w_t_bar_children[abs(w_t_bar_children.pdgId) < 11]
-    # antiquarks_num = ak.sum(abs(w_t_bar_children.pdgId) < 11)
-    # #100140
-    # from IPython import embed; embed()
+    sum_nu_pos = nu_3_pos.sum(axis=-1)
 
-    # #both ww
-    # electron = w_children[w_children.pdgId == 11]
-    # e_num = ak.sum(w_children.pdgId == 11)
-    # #16722
-
-
-    # muon = w_children[w_children.pdgId == 13]
-    # mu_num = ak.sum(w_children.pdgId == 13)
-    # #16617
-    
-    # tau = w_children[w_children.pdgId == 15]
-    # tau_num = ak.sum(w_children.pdgId == 15)
-    # #16591
-
-    # antitau = w_children[w_children.pdgId == -15]
-    # antitau_num = ak.sum(w_children.pdgId == -15)
-    # #16715
-    
-    # positron = w_children[w_children.pdgId == -11]
-    # posi_num = ak.sum(w_children.pdgId == -11)
-    # #16599
-
-    # antimuon = w_children[w_children.pdgId == -13]
-    # antimu_num = ak.sum(w_children.pdgId == -13)
-    # #16756
-
-    # q = w_children[abs(w_children.pdgId) < 11]
-    # q_num = ak.sum(abs(w_children.pdgId) < 11)
-
-
-
-
-
-
-
-    # [:, :, None]
-    #concatenate to create the structure to return
-    groups = ak.concatenate(
-        [
-            t,
-            t_bar,
-            b,
-            w_t,
-            w_t_bar,
-            w_t_children,
-            w_t_bar_children,
-            q_t,
-            q_t_bar,
-            lep_t,
-            lep_t_bar,
-            tau_neg,
-            tau_pos,
-            
-        ],
-        axis=1,
-    )
+    print("gen top decay debug console")
     #from IPython import embed; embed()
-
-    # field_dict = {
-    #    "t": t,
-    #    "t_bar": t_bar,
-    #    "b": b,
-    #    "w_t": w_t,
-    #    "w_t_bar": w_t_bar,
-    #    "w_t_children": w_t_children,
-    #    "w_t_bar_children": w_t_bar_children,
-    #    "q_t": q_t,
-    #    "q_t_bar": q_t_bar,
-    #    "lep_t": lep_t,
-    #    "lep_t_bar": lep_t_bar, 
-
-    # }
+    tau_nu = ak.concatenate([sum_nu_neg[..., None], sum_nu_pos[..., None]], axis=-1)
     
     
-    # groups = ak.zip({key: ak.pad_none(val, 2, axis=-1) for key, val in field_dict.items()})
+
+
+
+
+
+
+    # # [:, :, None]
+    # #concatenate to create the structure to return
+    # groups = ak.concatenate(
+    #     [
+    #         t,
+    #         t_bar,
+    #         b,
+    #         b_bar,
+    #         w_t,
+    #         w_t_bar,
+    #         w_t_children,
+    #         w_t_bar_children,
+    #         q_t,
+    #         q_t_bar,
+    #         lep_t,
+    #         lep_t_bar,
+    #         tau_neg,
+    #         tau_pos,
+            
+    #     ],
+    #     axis=1,
+    # )
+
+    field_dict = {
+        "t": t,
+        "t_bar": t_bar,
+        # "b": b,
+        # "b_bar": b_bar,
+        # "w_t": w_t,
+        # "tau_neg": tau_neg,
+        # "tau_pos": tau_pos,
+        # "w_t_bar": w_t_bar,
+        # "w_t_children": w_t_children,
+        # "w_t_bar_children": w_t_bar_children,
+        # "q_t": q_t,
+        # "q_t_bar": q_t_bar,
+        # "lep_t": lep_t,
+        # "lep_t_bar": lep_t_bar,
+
+    }
+    
+    
+    groups = ak.zip({key: ak.pad_none(val, 2, axis=-1) for key, val in field_dict.items()})
     # # save the column
-    events = set_ak_column(events, "gen_top_decay", groups)
-    events = set_ak_column(events, "z_pion_neg", z_pion_bar_neg)
-    events = set_ak_column(events, "z_pion_pos", z_pion_t_pos)
+    #from IPython import embed; embed()
+    def make_column_save(src: ak.Array):
+        col = ak.pad_none(src, 1, axis=-1)
+        col = ak.fill_none(col, EMPTY_FLOAT, axis=-1)
+        return col
+
+    # helper to clean problematic columns from array
+    def set_ak_column_save(
+        events: ak.Array,
+        target: str,
+        src: ak.Array,
+        problematic: Sequence[str] or None = None
+    ) -> ak.Array:
+        if problematic == None:
+            problematic = (
+                "childrenIdxG", "distinctChildrenDeepIdxG", "distinctChildrenIdxG",
+                "distinctParentIdxG", "genPartIdxMother", "genPartIdxMotherG",
+            )
+        # from IPython import embed; embed()
+        for route in get_ak_routes(src):
+            if not route in problematic:
+                events = set_ak_column(events, ".".join([target, route.column]), make_column_save(route.apply(src)))
+        return events
+    
+    events = set_ak_column_save(events, "gen_top_decay", groups)
     events = set_ak_column(events, "z_kaon_neg", z_kaon_bar_neg)
     events = set_ak_column(events, "z_kaon_pos", z_kaon_t_pos)
-    # events = set_ak_column(events, "z_pion_det_neg", 
-    #     ak.where(ak.is_none(z_pion_det_neg), EMPTY_FLOAT, z_pion_det_neg))
-    # events = set_ak_column(events, "z_pion_det_pos", 
-    #     ak.where(ak.is_none(z_pion_det_pos), EMPTY_FLOAT, z_pion_det_pos))
-    events = set_ak_column(events, "pion_neg", pion_neg)
-    events = set_ak_column(events, "pion_pos", pion_pos)
+    events = set_ak_column_save(events, "pion_neg", pion_neg)
+    events = set_ak_column_save(events, "pion_pos", pion_pos)
+    events = set_ak_column(events, "pion_neg.zfrac", make_column_save(z_pion_neg))
+    events = set_ak_column(events, "pion_pos.zfrac", make_column_save(z_pion_pos))
+    events = set_ak_column_save(events, "tau_nus", tau_nu)
 
+    # from IPython import embed; embed()
 
     return events
 

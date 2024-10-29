@@ -6,7 +6,7 @@ Definition of variables.
 
 import order as od
 
-from columnflow.columnar_util import EMPTY_FLOAT
+from columnflow.columnar_util import EMPTY_FLOAT, flat_np_view
 
 
 def add_variables(config: od.Config) -> None:
@@ -254,30 +254,6 @@ def add_variables(config: od.Config) -> None:
         binning=(40, -1, 1),
         x_title=r"$cos_{\nu w}$",
     )
-    # config.add_variable(
-    #     name="ts_cos_l",
-    #     expression="ts_cos_l",
-    #     binning=(40, -1, 1),
-    #     x_title=r"$cos_{l}$",
-    # )
-    # config.add_variable(
-    #     name="ts_cos_nu",
-    #     expression="ts_cos_nu",
-    #     binning=(40, -1, 1),
-    #     x_title=r"$cos_{\nu}$",
-    # )
-    # config.add_variable(
-    #     name="ts_cos_u",
-    #     expression="ts_cos_u",
-    #     binning=(40, -1, 1),
-    #     x_title=r"$cos_{u}$",
-    # )
-    # config.add_variable(
-    #     name="ts_cos_d",
-    #     expression="ts_cos_d",
-    #     binning=(40, -1, 1),
-    #     x_title=r"$cos_{d}$",
-    # )
     config.add_variable(
         name="ts_cos_bb",
         expression="ts_cos_bb",
@@ -296,32 +272,6 @@ def add_variables(config: od.Config) -> None:
         binning=(40, -1, 1),
         x_title=r"$cos_{\tau\bar{\tau}}$",
     )
-    #config.add_variable(
-    #    name="ts_gamma_h_b",
-    #    expression="ts_gamma_h_b",
-    #    binning=(14, 1, 15),
-    #    x_title=r"$\gamma_{h\rightarrow bb}$",
-    #)
-    #config.add_variable(
-    #    name="ts_gamma_h_tau",
-    #    expression="ts_gamma_h_tau",
-    #    binning=(14, 1, 15),
-    #    x_title=r"$\gamma_{h\rightarrow \tau\tau}$",
-    #)
-    #config.add_variable(
-    #    name="ts_pt_bb",
-    #    expression="ts_pt_bb",
-    #    binning=(40, 0.0, 400.0),
-    #    unit="GeV",
-    #    x_title=r"$pt_{h\rightarrow bb}$",
-    #)
-    #config.add_variable(
-    #    name="ts_pt_tautau",
-    #    expression="ts_pt_tautau",
-    #    binning=(40, 0.0, 400.0),
-    #    unit="GeV",
-    #    x_title=r"$pt_{h\rightarrow \tau\tau}$",
-    #)
     config.add_variable(
         name="ts_cos_tau_neg",
         expression="ts_cos_tau_neg",
@@ -536,6 +486,107 @@ def add_variables(config: od.Config) -> None:
        unit="GeV",
        x_title=r"$E^{det}_{\pi^{neg}}$",
     )
+    # config.add_variable(
+    #     name="pion_neg.zfrac",
+    #     expression="pion_neg.zfrac",
+    #     binning=(40, 0, 1.0),
+    #     x_title=r"$E_{\pi^{neg}}/E_{\tau^{neg}}$ ",
+    # )
+    # config.add_variable(
+    #     name="pion_pos.zfrac",
+    #     expression="pion_pos.zfrac",
+    #     binning=(40, 0, 1.0),
+    #     x_title=r"$E_{\pi^{pos}}/E_{\tau^{pos}}$ ",
+    # )
+    config.add_variable(
+        name="pion_neg.zfrac",
+        expression="pion_neg.zfrac",
+        binning=(2, 0, 1.0),
+        x_title=r"$E_{\pi^{neg}}/E_{\tau^{neg}}$ ",
+    )
+    config.add_variable(
+        name="pion_pos.zfrac",
+        expression="pion_pos.zfrac",
+        binning=(2, 0, 1.0),
+        x_title=r"$E_{\pi^{pos}}/E_{\tau^{pos}}$ ",
+    )
+    config.add_variable(
+        name="ts_z_pos",
+        expression="ts_z_pos",
+        binning=(40, 0, 1.),
+        x_title=r"$E^{pos}/E_{\tau^{pos}}$",
+    )
+    config.add_variable(
+        name="ts_z_neg",
+        expression="ts_z_neg",
+        binning=(40, 0, 1.),
+        x_title=r"$E^{neg}/E_{\tau^{neg}}$",
+    )
+    config.add_variable(
+        name="z_pos",
+        expression="z_pos",
+        binning=(40, 0, 1.),
+        x_title=r"$E^{pos}/E_{\tau^{pos}}$",
+    )
+    config.add_variable(
+        name="z_neg",
+        expression="z_neg",
+        binning=(40, 0, 1.),
+        x_title=r"$E^{neg}/E_{\tau^{neg}}$",
+    )
+
+    def z_rec_dm_expression(charge, decay_mode):
+        def expr(events):
+            z = flat_np_view(events[f"z_rec_{charge}"], axis=0)
+            dm = events[f"dm_{charge}"]
+            z[dm != decay_mode] = EMPTY_FLOAT
+            return z
+        return expr
+
+    for dm in [-1, 0, 1, 10, 11]:
+        dm_str = str(dm).replace("-", "m")
+        config.add_variable(
+            name=f"z_rec_pos_dm{dm_str}",
+            expression=z_rec_dm_expression("pos", dm),
+            binning=(40, 0, 1.005),
+            x_title=rf"$E^{{pos}}/E_{{\tau^{{pos}}}} (DM{dm},rec)$",
+            aux={"inputs": ["z_rec_pos", "dm_pos"]},
+        )
+        config.add_variable(
+            name=f"z_rec_neg_dm{dm_str}",
+            expression=z_rec_dm_expression("neg", dm),
+            binning=(40, 0, 1.005),
+            x_title=rf"$E^{{neg}}/E_{{\tau^{{neg}}}} (DM{dm},rec)$",
+            aux={"inputs": ["z_rec_neg", "dm_neg"]},
+        )
+
+
+    def z_gen_dm_expression(charge, decay_mode):
+        def expr(events):
+            z = flat_np_view(events[f"z_gen_{charge}"], axis=0)
+            dm = events[f"dm_{charge}"]
+            z[dm != decay_mode] = EMPTY_FLOAT
+            return z
+        return expr
+
+    for dm in [-1, 0, 1, 10, 11]:
+        dm_str = str(dm).replace("-", "m")
+        config.add_variable(
+            name=f"z_gen_pos_dm{dm_str}",
+            expression=z_gen_dm_expression("pos", dm),
+            binning=(40, 0, 1.005),
+            x_title=rf"$E^{{pos}}/E_{{\tau^{{pos}}}} (DM{dm},gen)$",
+            aux={"inputs": ["z_gen_pos", "dm_pos"]},
+
+        )
+        config.add_variable(
+            name=f"z_gen_neg_dm{dm_str}",
+            expression=z_gen_dm_expression("neg", dm),
+            binning=(40, 0, 1.005),
+            x_title=rf"$E^{{neg}}/E_{{\tau^{{neg}}}} (DM{dm},gen)$",
+            aux={"inputs": ["z_gen_neg", "dm_neg"]},
+        )
+        
 
 
 

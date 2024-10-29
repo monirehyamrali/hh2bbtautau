@@ -118,6 +118,7 @@ def add_config(
         "st_twchannel_tbar_powheg",
         "st_schannel_lep_amcatnlo",
         "st_schannel_had_amcatnlo",
+        "dy_lep_m50_amcatnlo",
         "dy_lep_pt50To100_amcatnlo",
         "dy_lep_pt100To250_amcatnlo",
         "dy_lep_pt250To400_amcatnlo",
@@ -174,6 +175,12 @@ def add_config(
     # verify that the root process of all datasets is part of any of the registered processes
     verify_config_processes(cfg, warn=True)
 
+    if year in (2022, 2023):
+        cfg.x.run = 3
+    elif year in (2016, 2017, 2018):
+        cfg.x.run = 2
+
+
     # default objects, such as calibrator, selector, producer, ml model, inference model, etc
     cfg.x.default_calibrator = "default"
     cfg.x.default_selector = "default"
@@ -182,6 +189,7 @@ def add_config(
     cfg.x.default_inference_model = "test_no_shifts"
     cfg.x.default_categories = ("incl",)
     cfg.x.default_variables = ("n_jet", "n_btag")
+    cfg.x.default_weight_producer = "all_weights"
 
     # process groups for conveniently looping over certain processs
     # (used in wrapper_factory and during plotting)
@@ -379,7 +387,7 @@ def add_config(
     ]
 
     # name of the btag_sf correction set and jec uncertainties to propagate through
-    cfg.x.btag_sf = ("deepJet_shape", cfg.x.btag_sf_jec_sources)
+    cfg.x.btag_sf = ("deepJet_shape", cfg.x.btag_sf_jec_sources, "btagDeepFlavB")
 
     # name of the deep tau tagger
     # (used in the tec calibrator)
@@ -564,6 +572,14 @@ def add_config(
 
     # external files
     json_mirror = "/afs/cern.ch/work/m/mrieger/public/mirrors/jsonpog-integration-9ea86c4c"
+
+    cfg.x.cpn_tag = f"{year}{corr_postfix}"
+    # create corr tag for pu names
+    if cfg.x.run == 2:
+        corr_tag = f"{cfg.x.cpn_tag}_UL"
+    elif cfg.x.run == 3:
+        corr_tag = f"{year}_Summer22{jerc_postfix}"
+
     cfg.x.external_files = DotDict.wrap({
         # jet energy correction
         "jet_jerc": (f"{json_mirror}/POG/JME/{year}{corr_postfix}_UL/jet_jerc.json.gz", "v1"),
@@ -585,6 +601,10 @@ def add_config(
 
         # hh-btag repository (lightweight) with TF saved model directories
         "hh_btag_repo": ("https://github.com/hh-italian-group/HHbtag/archive/1dc426053418e1cab2aec021802faf31ddf3c5cd.tar.gz", "v1"),  # noqa
+
+        "tautauNN_regression_model": ("/afs/desy.de/user/k/kramerto/public/xBogdan/ttreg_ED5_LU2x_9x128_CTfcn_ACTelu_BNy_LT50_DO0_BS4096_OPadam_LR3.0e-03_YEARy_SPINy_MASSy_FI0_SD1_reduced_features.tgz", "v1"),  # noqa
+
+        "pu_sf": (f"{json_mirror}/POG/LUM/{corr_tag}/puWeights.json.gz", "v1"),     # noqa
     })
 
     # external files with more complex year dependence
@@ -656,15 +676,15 @@ def add_config(
             "run", "luminosityBlock", "event",
             # object info
             "Jet.pt", "Jet.eta", "Jet.phi", "Jet.mass", "Jet.btagDeepFlavB", "Jet.hadronFlavour",
-            "Jet.hhbtag",
+            "Jet.hhbtag", "Jet.btagDeepFlavCvB",
             "BJet.*",
             "HHBJet.pt", "HHBJet.eta", "HHBJet.phi", "HHBJet.mass", "HHBJet.btagDeepFlavB",
             "HHBJet.hadronFlavour", "HHBJet.hhbtag",
             "NonHHBJet.pt", "NonHHBJet.eta", "NonHHBJet.phi", "NonHHBJet.mass",
             "NonHHBJet.btagDeepFlavB", "NonHHBJet.hadronFlavour", "NonHHBJet.hhbtag",
             "Electron.pt", "Electron.eta", "Electron.phi", "Electron.mass", "Electron.deltaEtaSC",
-            "Electron.pfRelIso03_all",
-            "Muon.pt", "Muon.eta", "Muon.phi", "Muon.mass", "Muon.pfRelIso04_all",
+            "Electron.pfRelIso03_all", "Electron.charge",
+            "Muon.pt", "Muon.eta", "Muon.phi", "Muon.mass", "Muon.pfRelIso04_all", "Muon.charge",
             "Tau.pt", "Tau.eta", "Tau.phi", "Tau.mass", "Tau.idDeepTau2017v2p1VSe",
             "Tau.idDeepTau2017v2p1VSmu", "Tau.idDeepTau2017v2p1VSjet", "Tau.genPartFlav",
             "Tau.decayMode", "Tau.charge",
@@ -677,11 +697,20 @@ def add_config(
             "leptons_os", "tau2_isolated", "single_triggered", "cross_triggered",
             "deterministic_seed", "pu_weight*", "btag_weight*", "cutflow.*",
             # spin tests
-            "ts_*", "gen_higgs_decay.*", "z_pion_neg", "z_pion_pos", "z_kaon_pos", "z_kaon_neg",
-            "gen_z_decay.*", "z_k_neg", "z_k_pos",
-            "gen_top_decay", "z_kaon_t_pos", "z_kaon_bar_neg", 
+            "ts_*", "gen_higgs_decay.*", "z_pion_neg", "z_pion_pos", "z_kaon_pos", "z_kaon_neg", "z_neg", "z_pos",
+            "gen_z_decay.*.pt", "gen_z_decay.*.eta", "gen_z_decay.*.phi", "gen_z_decay.*.mass", "gen_z_decay.*.pdgId",
+            "gen_z_decay.*.statusFlags", "z_k_neg", "z_k_pos",
+            "gen_top_decay.*.pt", "gen_top_decay.*.eta", "gen_top_decay.*.phi", "gen_top_decay.*.mass", "gen_top_decay.*.pdgId",
+            "gen_top_decay.*.statusFlags",
+            "z_kaon_t_pos", "z_kaon_bar_neg",
             "pion_neg.*", "pion_pos.*", "pion_det_neg.*", "pion_det_pos.*", "pion_pos_E", "pion_neg_E",
-            "pion_det_pos_E", "pion_det_neg_E",
+            "pion_det_pos_E", "pion_det_neg_E", "tau_nus.*",
+            "DeepMETResponseTune.pt", "DeepMETResponseTune.phi",
+            "DeepMETResolutionTune.pt", "DeepMETResolutionTune.phi",
+            "GenPart.genPartIdxMother", "GenPart.pdgId",
+            "GenPart.statusFlags", "GenPart.status",
+            "GenPart.eta", "GenPart.pt", "GenPart.phi", "GenPart.mass", "dm_neg", "dm_pos",
+            "z_rec_neg", "z_rec_pos", "z_gen_neg", "z_gen_pos",
         },
         "cf.MergeSelectionMasks": {
             "cutflow.*",

@@ -20,8 +20,9 @@ from columnflow.util import maybe_import, dev_sandbox
 from columnflow.columnar_util import Route, EMPTY_FLOAT, set_ak_column, EMPTY_FLOAT
 
 
-from hbt.production.top_spins import top_spins, higgs_spins, z_spins
 
+from hbt.production.top_spins import top_spins, higgs_spins, z_spins
+from hbt.production.tau_zfrac import top_nu, higgs_nu, z_nu
 
 np = maybe_import("numpy")
 ak = maybe_import("awkward")
@@ -31,14 +32,16 @@ set_ak_column_f32 = partial(set_ak_column, value_type=np.float32)
 
 @selector(
     uses={
-        mc_weight, pu_weight, process_ids, increment_stats, attach_coffea_behavior, top_spins,
-        pdf_weights, murmuf_weights, higgs_spins, z_spins,
+        mc_weight, pu_weight, process_ids, increment_stats, attach_coffea_behavior, top_spins, top_nu, higgs_nu, z_nu,
+        pdf_weights, murmuf_weights, higgs_spins, z_spins, 
     },
     produces={
         mc_weight, pu_weight, process_ids, increment_stats, top_spins, pdf_weights, murmuf_weights,
-        higgs_spins, z_spins, "pion_det_pos_E", "pion_det_neg_E"
+        higgs_spins, z_spins, top_nu, higgs_nu, z_nu,
+        #"pion_det_pos_E", "pion_det_neg_E"
     },
     exposed=True,
+    sandbox=dev_sandbox("bash::$HBT_BASE/sandboxes/venv_columnar_tf.sh"),
 )
 def gen_pt_eta_selection(
     self: Selector,
@@ -62,25 +65,31 @@ def gen_pt_eta_selection(
         
         # pileup weights
         events = self[pu_weight](events, **kwargs)
-
         # add spin variables
+
         if self.dataset_inst.name.startswith("tt_"):  # TODO: better switch
             events = self[top_spins](events, **kwargs)
+            #from IPython import embed; embed()
         elif self.dataset_inst.name.startswith("hh_"):  # TODO: better switch
             events = self[higgs_spins](events, **kwargs)
         elif self.dataset_inst.name.startswith("dy_"):  # TODO: better switch
             events = self[z_spins](events, **kwargs)   
-
+        if self.dataset_inst.name.startswith("tt_"):  # TODO: better switch
+            events = self[top_nu](events, **kwargs)
+        if self.dataset_inst.name.startswith("hh_"):  # TODO: better switch
+            events = self[higgs_nu](events, **kwargs)
+        elif self.dataset_inst.name.startswith("dy_"):  # TODO: better switch
+            events = self[z_nu](events, **kwargs) 
     
-   
+    # from IPython import embed; embed()
 
     # combined event selection after all steps
     event_sel = ak.full_like(events.event, True, dtype=bool)
 
+    
 
-
-    det_mask_neg = abs(events.pion_neg.eta <= 2.4) & (events.pion_neg.pt > 10)
-    det_mask_pos = abs(events.pion_pos.eta <= 2.4) & (events.pion_pos.pt > 10)
+    det_mask_neg = (abs(events.pion_neg.eta) <= 2.4) & (events.pion_neg.pt > 10)
+    det_mask_pos = (abs(events.pion_pos.eta) <= 2.4) & (events.pion_pos.pt > 10)
 
     
 
@@ -90,21 +99,20 @@ def gen_pt_eta_selection(
 
     pion_det_neg = ak.mask(events.pion_neg, det_mask_neg)
     pion_det_pos = ak.mask(events.pion_pos, det_mask_pos)
+  
     
     # select all events with at least one pion, do not apply the pion selection criteria
-    # event_sel_pos = ak.fill_none(ak.num(pion_det_pos, axis=1) > 0, False) 
-    # event_sel_neg =  ak.fill_none(ak.num(pion_det_neg, axis=1) > 0, False)
-    
     event_sel_pos = ak.any(~ak.is_none(pion_det_pos.pt, axis=-1), axis=-1)
     event_sel_neg = ak.any(~ak.is_none(pion_det_neg.pt, axis=-1), axis=-1)
-    event_sel = event_sel_pos | event_sel_neg
     
-    events = set_ak_column_f32(events, "pion_det_pos_E", events.pion_pos_E[pion_pos_indices])
-    events = set_ak_column_f32(events, "pion_det_neg_E", events.pion_neg_E[pion_neg_indices])
+
+
+    event_sel = (ak.fill_none(event_sel_pos , False) | ak.fill_none(event_sel_neg , False))
+    
+    # events = set_ak_column_f32(events, "pion_det_pos_E", events.pion_pos_E[pion_pos_indices])
+    # events = set_ak_column_f32(events, "pion_det_neg_E", events.pion_neg_E[pion_neg_indices])
 
     # prepare the selection results that are updated at every step
-    # from IPython import embed
-    # embed()
     results =  SelectionResult(
         steps={
             "pions": event_sel,
@@ -128,10 +136,9 @@ def gen_pt_eta_selection(
             # },
         },
     )
-    # from IPython import embed; embed()
-    results.event = event_sel
-    
 
+    results.event = reduce(and_, results.steps.values())
+        
     # create process ids
     events = self[process_ids](events, **kwargs)
 
@@ -170,6 +177,7 @@ def gen_pt_eta_selection(
         group_map=group_map,
         **kwargs,
     )
+    #from IPython import embed; embed()
     
 
     return events, results
